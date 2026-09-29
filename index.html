@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ментальные карты | Команда АВАНГАРД</title>
     
-    <!-- Библиотека Markmap для генерации карт -->
-    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
-    <script src="https://cdn.jsdelivr.net/npm/markmap-view"></script>
-    <script src="https://cdn.jsdelivr.net/npm/markmap-lib"></script>
+    <!-- Markmap библиотеки -->
+    <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/markmap-view@0.17.2/dist/browser/index.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/markmap-lib@0.17.2/dist/browser/index.js"></script>
     
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -20,7 +20,6 @@
             color: #2d5a1e;
         }
         
-        /* Шапка */
         header {
             background: linear-gradient(135deg, #2d5a1e, #6b8e23);
             color: #fff8e1;
@@ -42,7 +41,6 @@
             font-size: 95%;
         }
         
-        /* Основной контейнер */
         .container {
             max-width: 1200px;
             margin: 30px auto;
@@ -56,7 +54,6 @@
             .container { grid-template-columns: 1fr; }
         }
         
-        /* Панель ввода */
         .input-panel {
             background: #ffffff;
             border: 2px solid #81c784;
@@ -141,9 +138,8 @@
         }
         
         .btn-clear:hover {
-            background: #f4fbf4;
-}
-        
+             background: #f4fbf4;
+        }
         .btn-example {
             background: #fff8e1;
             color: #5d4037;
@@ -154,7 +150,6 @@
             background: #ffecb3;
         }
         
-        /* Область карты */
         .map-panel {
             background: #ffffff;
             border: 2px solid #81c784;
@@ -179,7 +174,29 @@
             background: #fafafa;
         }
         
-        /* Футер */
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 90%;
+            text-align: center;
+        }
+        
+        .status.loading {
+            background: #fff8e1;
+            color: #f57f17;
+        }
+        
+        .status.success {
+            background: #e8f5e9;
+            color: #2d5a1e;
+        }
+        
+        .status.error {
+            background: #ffebee;
+            color: #c62828;
+        }
+        
         footer {
             background: linear-gradient(135deg, #2d5a1e, #6b8e23);
             color: #fff8e1;
@@ -199,7 +216,6 @@
 
 <div class="container">
     
-    <!-- Панель ввода -->
     <div class="input-panel">
         <h2>✏️ Введите структуру карты</h2>
         
@@ -226,9 +242,10 @@
             <button class="btn-example" onclick="loadExample()">📚 Пример</button>
             <button class="btn-clear" onclick="clearInput()">🗑 Очистить</button>
         </div>
+        
+        <div id="status" class="status loading">⏳ Загрузка библиотек...</div>
     </div>
     
-    <!-- Область карты -->
     <div class="map-panel">
         <h2>🧠 Ваша ментальная карта</h2>
         <svg id="mindmap"></svg>
@@ -242,13 +259,42 @@
 </footer>
 
 <script>
-    const { Transformer } = window.markmap;
-    const { Markmap } = window.markmapView;
-    
     let mm = null;
-    const transformer = new Transformer();
+    let transformer = null;
+    let librariesLoaded = false;
+    
+    // Проверка загрузки библиотек
+    function checkLibraries() {
+        const statusEl = document.getElementById('status');
+        
+        if (typeof window.markmap !== 'undefined' && 
+            typeof window.markmap.Transformer !== 'undefined' &&
+            typeof window.markmap.Markmap !== 'undefined') {
+            
+            transformer = new window.markmap.Transformer();
+            librariesLoaded = true;
+            statusEl.className = 'status success';
+            statusEl.textContent = '✅ Готово к работе!';
+            
+            // Автозагрузка примера
+            setTimeout(loadExample, 500);
+        } else {
+            statusEl.className = 'status error';
+            statusEl.textContent = '❌ Ошибка загрузки библиотек. Обновите страницу (F5).';
+        }
+    }
+    
+    // Ждём загрузки всех скриптов
+    window.addEventListener('load', function() {
+        setTimeout(checkLibraries, 1000);
+    });
     
     function generateMap() {
+        if (!librariesLoaded) {
+            alert('⏳ Библиотеки ещё загружаются. Подождите немного...');
+            return;
+        }
+        
         const input = document.getElementById('input').value.trim();
         
         if (!input) {
@@ -256,16 +302,24 @@
             return;
         }
         
-        const { root } = transformer.transform(input);
-        const svg = document.getElementById('mindmap');
-        svg.innerHTML = '';
-        
-        mm = Markmap.create(svg, {
-            colorFreezeLevel: 2,
-            duration: 500,
-            maxWidth: 200,
-            paddingX: 20
-        }, root);
+        try {
+            const { root } = transformer.transform(input);
+            const svg = document.getElementById('mindmap');
+            svg.innerHTML = '';
+            
+            mm = window.markmap.Markmap.create(svg, {
+                colorFreezeLevel: 2,
+                duration: 500,
+                maxWidth: 200,
+                paddingX: 20
+            }, root);
+            
+            document.getElementById('status').className = 'status success';
+            document.getElementById('status').textContent = '✅ Карта создана!';
+        } catch (error) {
+            document.getElementById('status').className = 'status error';
+            document.getElementById('status').textContent = '❌ Ошибка: ' + error.message;
+        }
     }
     
     function loadExample() {
@@ -290,17 +344,21 @@
 - Труды по этике и эстетике
 - Педагогические идеи
 - Музей в Калининграде`;
-        generateMap();
+        
+        if (librariesLoaded) {
+            generateMap();
+        }
     }
     
     function clearInput() {
         document.getElementById('input').value = '';
-document.getElementById('mindmap').innerHTML = '';
+        document.getElementById('mindmap').innerHTML = '';
+        document.getElementById('status').className = 'status success';
+        document.getElementById('status').textContent = '✅ Поле очищено';
     }
-    
-    // Загрузить пример при старте
-    window.onload = loadExample;
 </script>
 
 </body>
 </html>
+            background: #f4fbf4;
+        }
