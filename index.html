@@ -167,7 +167,7 @@
         #mindmap {
             width: 100%;
             min-height: 600px;
-            overflow: auto;
+            position: relative;
         }
         
         .status {
@@ -189,8 +189,23 @@
             font-style: italic;
         }
         
+        .lines-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            pointer-events: none;
+        }
+        
+        .node-root, .node-branch, .node-sub {
+            position: absolute;
+            z-index: 2;
+        }
+        
         .node-content {
-            padding: 8px;
+            padding: 10px;
             text-align: center;
             font-size: 12px;
             line-height: 1.4;
@@ -200,9 +215,10 @@
         
         .node-content img {
             max-width: 100%;
-            max-height: 80px;
+            max-height: 100px;
             border-radius: 4px;
             margin-bottom: 5px;
+            display: block;
         }
         
         .node-root .node-content {
@@ -211,6 +227,7 @@
             font-size: 16px;
             font-weight: bold;
             border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(45,90,30,0.3);
         }
         
         .node-branch .node-content {
@@ -218,6 +235,7 @@
             color: #fff;
             font-weight: bold;
             border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(76,175,80,0.2);
         }
         
         .node-sub .node-content {
@@ -225,6 +243,21 @@
             color: #1b5e20;
             border: 2px solid #a5d6a7;
             border-radius: 6px;
+            box-shadow: 0 1px 4px rgba(76,175,80,0.1);
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid #81c784;
+            border-top-color: #2d5a1e;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
         }
     </style>
 </head>
@@ -245,15 +278,17 @@
             # Главная тема<br>
             ## Ветвь 1<br>
             - Подпункт<br>
-            - ![описание](url картинки)<br>
+            -  Название для поиска картинки<br>
             ## Ветвь 2<br>
-            - Подпункт с длинным текстом
+            - Подпункт с длинным текстом<br><br>
+            <strong>✨ Автопоиск картинок:</strong> добавьте 🖼 перед названием,<br>
+            и сайт сам найдёт картинку!
         </div>
         
         <textarea id="input" placeholder="# Иммануил Кант
 ## Биография
 - 1724–1804 годы жизни
-- ![Портрет](https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Kant_gemaelde_3.jpg/220px-Kant_gemaelde_3.jpg)
+- 🖼 Immanuel Kant portrait
 ## Философия
 - Критика чистого разума
 - Категорический императив"></textarea>
@@ -280,7 +315,9 @@
 </footer>
 
 <script>
-    // Парсер Markdown в дерево
+    // Кэш найденных картинок
+    const imageCache = {};
+    
     function parseMarkdown(text) {
         const lines = text.split('\n').filter(line => line.trim());
         const root = { name: '', children: [] };
@@ -288,6 +325,7 @@
         
         for (const line of lines) {
             const trimmed = line.trim();
+            
             if (trimmed.startsWith('# ') && !trimmed.startsWith('## ')) {
                 root.name = trimmed.substring(2).trim();
             } else if (trimmed.startsWith('## ')) {
@@ -302,26 +340,61 @@
         return root;
     }
     
-    // Парсинг узла (текст + возможная картинка)
     function parseNode(content) {
-        const imgMatch = content.match(/^!\[([^\]]*)\]\(([^)]+)\)/);
+        // Проверка на автопоиск картинки (🖼)
+        if (content.startsWith('🖼')) {
+            const query = content.substring(1).trim();
+            return {
+                type: 'auto-image',
+                query: query
+            };
+        }
         
+        // Проверка на прямую ссылку на картинку
+        const imgMatch = content.match(/^!\[([^\]]*)\]\(([^)]+)\)/);
         if (imgMatch) {
             return {
                 type: 'image',
                 alt: imgMatch[1],
                 url: imgMatch[2]
             };
-        } else {
-            return {
-                type: 'text',
-                content: content
-            };
         }
+        
+        return {
+            type: 'text',
+            content: content
+        };
     }
     
-    // Генерация HTML-карты
-    function generateMap() {
+    // Поиск картинки через Wikimedia Commons API
+    async function searchImage(query) {
+        if (imageCache[query]) {
+            return imageCache[query];
+        }
+        
+        try {
+            const response = await fetch(
+                `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(query)}&gsrlimit=1&prop=imageinfo&iiprop=url&iiurlwidth=200&format=json&origin=*`
+            );
+            
+            const data = await response.json();
+            
+            if (data.query && data.query.pages) {
+                const pages = Object.values(data.query.pages);
+                if (pages.length > 0 && pages[0].imageinfo) {
+                    const imageUrl = pages[0].imageinfo[0].thumburl || pages[0].imageinfo[0].url;
+                    imageCache[query] = imageUrl;
+                    return imageUrl;
+                }
+            }
+        } catch (error) {
+            console.error('Ошибка поиска картинки:', error);
+        }
+        
+        return null;
+    }
+    
+    async function generateMap() {
         const input = document.getElementById('input').value.trim();
         
         if (!input) {
@@ -331,65 +404,112 @@
         
         try {
             const tree = parseMarkdown(input);
+            
+            // Сначала рендерим карту с плейсхолдерами
             const html = renderTree(tree);
             document.getElementById('mindmap').innerHTML = html;
+            document.getElementById('status').innerHTML = '<span class="loading"></span> Поиск картинок...';
+            
+            // Затем загружаем картинки
+            await loadImages(tree);
+            background: #ffffff;
             document.getElementById('status').textContent = '✅ Карта создана!';
         } catch (error) {
             document.getElementById('status').textContent = '❌ Ошибка: ' + error.message;
         }
     }
     
-    // Рендер дерева в HTML
+    async function loadImages(tree) {
+        const promises = [];
+        
+        tree.children.forEach((branch, i) => {
+            branch.children.forEach((sub, j) => {
+                if (sub.type === 'auto-image') {
+                    const promise = searchImage(sub.query).then(url => {
+                        const imgEl = document.getElementById(`img-${i}-${j}`);
+                        if (imgEl && url) {
+                            imgEl.src = url;
+                            imgEl.style.display = 'block';
+                            const loadingEl = document.getElementById(`loading-${i}-${j}`);
+                            if (loadingEl) loadingEl.style.display = 'none';
+                        }
+                    });
+                    promises.push(promise);
+                }
+            });
+        });
+        
+        await Promise.all(promises);
+    }
+    
     function renderTree(tree) {
-        let html = '<div style="position: relative; min-height: 600px;">';
+        const containerWidth = 1200;
+        const containerHeight = 800;
+        
+        let html = `<div style="position: relative; width: ${containerWidth}px; height: ${containerHeight}px; margin: 0 auto;">`;
+        
+        // Линии
+        html += `<svg class="lines-layer" width="${containerWidth}" height="${containerHeight}">`;
+        
+        const centerX = containerWidth / 2;
+        const centerY = 80;
+        const branchY = 220;
+        
+        const branchCount = tree.children.length;
+        const branchSpacing = branchCount > 1 ? (containerWidth - 200) / (branchCount - 1) : 0;
+        const branchStartX = branchCount > 1 ? 100 : centerX;
+        
+        tree.children.forEach((branch, i) => {
+            const branchX = branchStartX + branchSpacing * i;
+            html += `<line x1="${centerX}" y1="${centerY + 30}" x2="${branchX}" y2="${branchY}" stroke="#81c784" stroke-width="3"/>`;
+        });
+        
+        tree.children.forEach((branch, i) => {
+            const branchX = branchStartX + branchSpacing * i;
+            
+            branch.children.forEach((sub, j) => {
+                const subY = branchY + 120 + j * 130;
+                html += `<line x1="${branchX}" y1="${branchY + 40}" x2="${branchX}" y2="${subY}" stroke="#a5d6a7" stroke-width="2"/>`;
+            });
+        });
+        
+        html += '</svg>';
         
         // Центральный узел
-        html += `<div class="node-root" style="position: absolute; left: 50%; top: 50px; transform: translateX(-50%); width: 200px;">
+        html += `<div class="node-root" style="left: ${centerX - 100}px; top: ${centerY - 30}px; width: 200px;">
             <div class="node-content">${escapeHtml(tree.name)}</div>
         </div>`;
         
-        // Ветви
-        const branchCount = tree.children.length;
-        const width = 1200;
-        const startX = 100;
-        const spacing = (width - 200) / (branchCount > 1 ? branchCount - 1 : 1);
-        
+        // Ветви и подпункты
         tree.children.forEach((branch, i) => {
-            const x = branchCount === 1 ? width / 2 : startX + spacing * i;
-            const y = 200;
+            const branchX = branchStartX + branchSpacing * i;
             
-            // Ветвь
-            html += `<div class="node-branch" style="position: absolute; left: ${x}px; top: ${y}px; width: 180px; transform: translateX(-50%);">
+            html += `<div class="node-branch" style="left: ${branchX - 90}px; top: ${branchY - 20}px; width: 180px;">
                 <div class="node-content">${escapeHtml(branch.name)}</div>
             </div>`;
             
-            // Линия от центра к ветви
-            html += `<svg style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none;">
-                <line x1="${width/2}" y1="100" x2="${x}" y2="${y}" stroke="#81c784" stroke-width="2"/>
-            </svg>`;
-            
-            // Подпункты
             branch.children.forEach((sub, j) => {
-                const subX = x;
-                const subY = y + 150 + j * 120;
+                const subY = branchY + 120 + j * 130;
                 
                 let subContent = '';
-                if (sub.type === 'image') {
-                    subContent = `<img src="${escapeHtml(sub.url)}" alt="${escapeHtml(sub.alt)}"/>`;
-                    if (sub.alt) subContent += `<div>${escapeHtml(sub.alt)}</div>`;
+                if (sub.type === 'auto-image') {
+                    subContent = `
+                        <div id="loading-${i}-${j}" style="text-align:center; padding:20px;">
+                            <span class="loading"></span>
+                        </div>
+                        <img id="img-${i}-${j}" style="display:none;" alt="${escapeHtml(sub.query)}"/>
+                        <div style="margin-top:5px; font-size:10px; color:#666;">${escapeHtml(sub.query)}</div>
+                    `;
+                } else if (sub.type === 'image') {
+                    subContent = `<img src="${escapeHtml(sub.url)}" alt="${escapeHtml(sub.alt)}" onerror="this.style.display='none';"/>`
+                    if (sub.alt) subContent += `<div style="margin-top:5px; font-size:11px;">${escapeHtml(sub.alt)}</div>`;
                 } else {
                     subContent = escapeHtml(sub.content);
                 }
                 
-                html += `<div class="node-sub" style="position: absolute; left: ${subX}px; top: ${subY}px; width: 160px; transform: translateX(-50%);">
+                html += `<div class="node-sub" style="left: ${branchX - 80}px; top: ${subY - 20}px; width: 160px;">
                     <div class="node-content">${subContent}</div>
                 </div>`;
-                
-                // Линия от ветви к подпункту
-                html += `<svg style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none;">
-            background: #ffffff;
-            <line x1="${x}" y1="${y + 60}" x2="${subX}" y2="${subY}" stroke="#a5d6a7" stroke-width="1.5"/>
-                </svg>`;
             });
         });
         
@@ -408,15 +528,15 @@
 ## 📖 Биография
 - 1724–1804 годы жизни
 - Родился и прожил всю жизнь в Кёнигсберге
-- ![Портрет Канта](https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Kant_gemaelde_3.jpg/220px-Kant_gemaelde_3.jpg)
+- 🖼 Immanuel Kant portrait
 ## 💭 Философия
 - Критика чистого разума - главный труд
 - Категорический императив как основа этики
-- Трансцендентальный идеализм
+- 🖼 Critique of Pure Reason book
 ## 🕰️ Эпоха
 - Эпоха Просвещения (XVIII век)
 - Родоначальник немецкой классической философии
-- Совершил переворот в мировой мысли
+- 🖼 Enlightenment era painting
 ## 🌍 Влияние
 - Основа современной этики и эпистемологии
 - Оказал влияние на Гегеля, Фихте, Шеллинга
@@ -424,7 +544,7 @@
 ## 🏛️ Наследие
 - Труды по этике, эстетике, политике
 - Педагогические идеи о воспитании
-- Музей Канта в Калининграде`;
+- 🖼 Kaliningrad Kant museum`;
         
         generateMap();
     }
@@ -435,9 +555,9 @@
         document.getElementById('status').textContent = '✅ Поле очищено';
     }
     
-    // Автозагрузка примера
     window.onload = loadExample;
 </script>
 
 </body>
 </html>
+            
