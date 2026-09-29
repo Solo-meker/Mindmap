@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ментальные карты | Команда АВАНГАРД</title>
+    
+    <!-- Библиотека Markmap для генерации карт -->
+    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+    <script src="https://cdn.jsdelivr.net/npm/markmap-view"></script>
+    <script src="https://cdn.jsdelivr.net/npm/markmap-lib"></script>
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: Georgia, 'Times New Roman', serif;
+            background: linear-gradient(135deg, #f4fbf4 0%, #e8f5e9 100%);
+            min-height: 100vh;
+            color: #2d5a1e;
+        }
+        
+        /* Шапка */
+        header {
+            background: linear-gradient(135deg, #2d5a1e, #6b8e23);
+            color: #fff8e1;
+            padding: 25px 20px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(45,90,30,0.3);
+        }
+        
+        header h1 {
+            font-size: 180%;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+        
+        header p {
+            font-style: italic;
+            opacity: 0.9;
+            font-size: 95%;
+        }
+        
+        /* Основной контейнер */
+        .container {
+            max-width: 1200px;
+            margin: 30px auto;
+            padding: 0 20px;
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 25px;
+        }
+        
+        @media (max-width: 768px) {
+            .container { grid-template-columns: 1fr; }
+        }
+        
+        /* Панель ввода */
+        .input-panel {
+            background: #ffffff;
+            border: 2px solid #81c784;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(76,175,80,0.15);
+        }
+        
+        .input-panel h2 {
+            color: #2d5a1e;
+            margin-bottom: 15px;
+            font-size: 120%;
+            border-bottom: 2px solid #a5d6a7;
+            padding-bottom: 10px;
+        }
+        
+        textarea {
+            width: 100%;
+            height: 350px;
+            padding: 15px;
+            border: 2px solid #a5d6a7;
+            border-radius: 8px;
+            font-family: 'Consolas', monospace;
+            font-size: 14px;
+            resize: vertical;
+            color: #1b5e20;
+            line-height: 1.6;
+        }
+        
+        textarea:focus {
+            outline: none;
+            border-color: #2d5a1e;
+            box-shadow: 0 0 8px rgba(45,90,30,0.2);
+        }
+        
+        .hint {
+            background: #f4fbf4;
+            border-left: 4px solid #6b8e23;
+            padding: 12px;
+            margin: 15px 0;
+            border-radius: 0 8px 8px 0;
+            font-size: 85%;
+            color: #1b5e20;
+            line-height: 1.6;
+        }
+        
+        .buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            flex: 1;
+            min-width: 120px;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-family: Georgia, serif;
+            font-size: 100%;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .btn-generate {
+            background: linear-gradient(135deg, #2d5a1e, #6b8e23);
+            color: #fff8e1;
+        }
+        
+        .btn-generate:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(45,90,30,0.3);
+        }
+        
+        .btn-clear {
+            background: #ffffff;
+            color: #2d5a1e;
+            border: 2px solid #81c784;
+        }
+        
+        .btn-clear:hover {
+            background: #f4fbf4;
+}
+        
+        .btn-example {
+            background: #fff8e1;
+            color: #5d4037;
+            border: 2px solid #ffd54f;
+        }
+        
+        .btn-example:hover {
+            background: #ffecb3;
+        }
+        
+        /* Область карты */
+        .map-panel {
+            background: #ffffff;
+            border: 2px solid #81c784;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(76,175,80,0.15);
+            min-height: 500px;
+        }
+        
+        .map-panel h2 {
+            color: #2d5a1e;
+            margin-bottom: 15px;
+            font-size: 120%;
+            border-bottom: 2px solid #a5d6a7;
+            padding-bottom: 10px;
+        }
+        
+        #mindmap {
+            width: 100%;
+            height: 500px;
+            border-radius: 8px;
+            background: #fafafa;
+        }
+        
+        /* Футер */
+        footer {
+            background: linear-gradient(135deg, #2d5a1e, #6b8e23);
+            color: #fff8e1;
+            text-align: center;
+            padding: 20px;
+            margin-top: 40px;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>🌳 Ментальные карты АВАНГАРДА</h1>
+    <p>«Где знание прорастает сквозь труд, а мудрость — сквозь терпение»</p>
+</header>
+
+<div class="container">
+    
+    <!-- Панель ввода -->
+    <div class="input-panel">
+        <h2>✏️ Введите структуру карты</h2>
+        
+        <div class="hint">
+            <strong>Как писать:</strong><br>
+            # Главная тема<br>
+            ## Ветвь 1<br>
+            - Подпункт<br>
+            - Подпункт<br>
+            ## Ветвь 2<br>
+            - Подпункт
+        </div>
+        
+        <textarea id="input" placeholder="# Иммануил Кант
+## Биография
+- 1724–1804
+- Кёнигсберг
+## Философия
+- Критика чистого разума
+- Категорический императив"></textarea>
+        
+        <div class="buttons" style="margin-top: 15px;">
+            <button class="btn-generate" onclick="generateMap()">🌿 Создать карту</button>
+            <button class="btn-example" onclick="loadExample()">📚 Пример</button>
+            <button class="btn-clear" onclick="clearInput()">🗑 Очистить</button>
+        </div>
+    </div>
+    
+    <!-- Область карты -->
+    <div class="map-panel">
+        <h2>🧠 Ваша ментальная карта</h2>
+        <svg id="mindmap"></svg>
+    </div>
+    
+</div>
+
+<footer>
+    🌳 Авангард растёт. Авангард побеждает. 🌳<br>
+    <span style="font-size: 85%; opacity: 0.8;">Знание — наш корень. Учёба — наш путь.</span>
+</footer>
+
+<script>
+    const { Transformer } = window.markmap;
+    const { Markmap } = window.markmapView;
+    
+    let mm = null;
+    const transformer = new Transformer();
+    
+    function generateMap() {
+        const input = document.getElementById('input').value.trim();
+        
+        if (!input) {
+            alert('🌱 Введите текст для создания карты!');
+            return;
+        }
+        
+        const { root } = transformer.transform(input);
+        const svg = document.getElementById('mindmap');
+        svg.innerHTML = '';
+        
+        mm = Markmap.create(svg, {
+            colorFreezeLevel: 2,
+            duration: 500,
+            maxWidth: 200,
+            paddingX: 20
+        }, root);
+    }
+    
+    function loadExample() {
+        document.getElementById('input').value = `# Иммануил Кант
+## 📖 Биография
+- 1724–1804 годы жизни
+- Кёнигсберг (Калининград)
+- Профессор университета
+## 💭 Философия
+- Критика чистого разума
+- Категорический императив
+- Трансцендентальный идеализм
+## 🕰️ Эпоха
+- Просвещение (XVIII век)
+- Немецкая классическая философия
+- Родоначальник нового мышления
+## 🌍 Влияние
+- Переворот в мировой мысли
+- Основа современной этики
+- Влияние на Гегеля, Фихте
+## 🏛️ Наследие
+- Труды по этике и эстетике
+- Педагогические идеи
+- Музей в Калининграде`;
+        generateMap();
+    }
+    
+    function clearInput() {
+        document.getElementById('input').value = '';
+document.getElementById('mindmap').innerHTML = '';
+    }
+    
+    // Загрузить пример при старте
+    window.onload = loadExample;
+</script>
+
+</body>
+</html>
