@@ -37,7 +37,7 @@
         }
         
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 30px auto;
             padding: 0 20px;
             display: grid;
@@ -72,7 +72,7 @@
             border: 2px solid #a5d6a7;
             border-radius: 8px;
             font-family: 'Consolas', monospace;
-            font-size: 14px;
+            font-size: 13px;
             resize: vertical;
             color: #1b5e20;
             line-height: 1.6;
@@ -99,6 +99,7 @@
             display: flex;
             gap: 10px;
             flex-wrap: wrap;
+            margin-top: 15px;
         }
         
         button {
@@ -147,10 +148,11 @@
         }
         
         .map-panel {
-        border-radius: 12px;
+            border: 2px solid #81c784;
+            border-radius: 12px;
             padding: 20px;
             box-shadow: 0 2px 8px rgba(76,175,80,0.15);
-            min-height: 500px;
+            min-height: 600px;
             overflow: auto;
         }
         
@@ -164,7 +166,8 @@
         
         #mindmap {
             width: 100%;
-            min-height: 500px;
+            min-height: 600px;
+            overflow: auto;
         }
         
         .status {
@@ -186,23 +189,42 @@
             font-style: italic;
         }
         
-        /* Стили для SVG-карты */
-        .node-circle {
-            fill: #2d5a1e;
-            stroke: #fff;
-            stroke-width: 2;
+        .node-content {
+            padding: 8px;
+            text-align: center;
+            font-size: 12px;
+            line-height: 1.4;
+            word-wrap: break-word;
+            overflow: hidden;
         }
         
-        .node-text {
-            font-family: Georgia, serif;
-            font-size: 14px;
-            fill: #1b5e20;
+        .node-content img {
+            max-width: 100%;
+            max-height: 80px;
+            border-radius: 4px;
+            margin-bottom: 5px;
         }
         
-        .link {
-            fill: none;
-            stroke: #81c784;
-            stroke-width: 2;
+        .node-root .node-content {
+            background: linear-gradient(135deg, #2d5a1e, #6b8e23);
+            color: #fff8e1;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 12px;
+        }
+        
+        .node-branch .node-content {
+            background: #81c784;
+            color: #fff;
+            font-weight: bold;
+            border-radius: 8px;
+        }
+        
+        .node-sub .node-content {
+            background: #e8f5e9;
+            color: #1b5e20;
+            border: 2px solid #a5d6a7;
+            border-radius: 6px;
         }
     </style>
 </head>
@@ -223,20 +245,20 @@
             # Главная тема<br>
             ## Ветвь 1<br>
             - Подпункт<br>
-            - Подпункт<br>
+            - ![описание](url картинки)<br>
             ## Ветвь 2<br>
-            - Подпункт
+            - Подпункт с длинным текстом
         </div>
         
         <textarea id="input" placeholder="# Иммануил Кант
 ## Биография
-- 1724–1804
-- Кёнигсберг
+- 1724–1804 годы жизни
+- ![Портрет](https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Kant_gemaelde_3.jpg/220px-Kant_gemaelde_3.jpg)
 ## Философия
 - Критика чистого разума
 - Категорический императив"></textarea>
         
-        <div class="buttons" style="margin-top: 15px;">
+        <div class="buttons">
             <button class="btn-generate" onclick="generateMap()">🌿 Создать карту</button>
             <button class="btn-example" onclick="loadExample()">📚 Пример</button>
             <button class="btn-clear" onclick="clearInput()">🗑 Очистить</button>
@@ -266,73 +288,39 @@
         
         for (const line of lines) {
             const trimmed = line.trim();
-            
             if (trimmed.startsWith('# ') && !trimmed.startsWith('## ')) {
                 root.name = trimmed.substring(2).trim();
             } else if (trimmed.startsWith('## ')) {
                 currentBranch = { name: trimmed.substring(3).trim(), children: [] };
                 root.children.push(currentBranch);
             } else if (trimmed.startsWith('- ') && currentBranch) {
-                currentBranch.children.push({ name: trimmed.substring(2).trim() });
+                const content = trimmed.substring(2).trim();
+                currentBranch.children.push(parseNode(content));
             }
         }
         
         return root;
     }
     
-    // Генерация SVG-карты
-    function generateSVG(tree) {
-        const width = 800;
-        const height = 600;
-        const centerX = width / 2;
-        const centerY = height / 2;
+    // Парсинг узла (текст + возможная картинка)
+    function parseNode(content) {
+        const imgMatch = content.match(/^!\[([^\]]*)\]\(([^)]+)\)/);
         
-        let svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">`;
-        // Центральный узел
-        svg += `<circle cx="${centerX}" cy="${centerY}" r="40" class="node-circle"/>`;
-        svg += `<text x="${centerX}" y="${centerY + 5}" text-anchor="middle" class="node-text" fill="#fff" font-weight="bold">${escapeHtml(tree.name)}</text>`;
-        
-        // Ветви
-        const branchCount = tree.children.length;
-        const angleStep = (2 * Math.PI) / branchCount;
-        
-        tree.children.forEach((branch, i) => {
-            const angle = angleStep * i - Math.PI / 2;
-            const branchX = centerX + Math.cos(angle) * 200;
-            const branchY = centerY + Math.sin(angle) * 200;
-            
-            // Линия к ветви
-            svg += `<line x1="${centerX}" y1="${centerY}" x2="${branchX}" y2="${branchY}" class="link"/>`;
-            
-            // Узел ветви
-            svg += `<circle cx="${branchX}" cy="${branchY}" r="30" fill="#81c784" stroke="#fff" stroke-width="2"/>`;
-            svg += `<text x="${branchX}" y="${branchY + 5}" text-anchor="middle" class="node-text" font-size="12">${escapeHtml(branch.name)}</text>`;
-            
-            // Подпункты
-            const subCount = branch.children.length;
-            const subAngleStep = Math.PI / (subCount + 1);
-            
-            branch.children.forEach((sub, j) => {
-                const subAngle = angle - Math.PI/4 + subAngleStep * (j + 1);
-                const subX = branchX + Math.cos(subAngle) * 120;
-                const subY = branchY + Math.sin(subAngle) * 120;
-                
-                svg += `<line x1="${branchX}" y1="${branchY}" x2="${subX}" y2="${subY}" stroke="#a5d6a7" stroke-width="1.5"/>`;
-                svg += `<circle cx="${subX}" cy="${subY}" r="20" fill="#e8f5e9" stroke="#81c784" stroke-width="2"/>`;
-                svg += `<text x="${subX}" y="${subY + 4}" text-anchor="middle" class="node-text" font-size="10">${escapeHtml(sub.name)}</text>`;
-            });
-        });
-        
-        svg += '</svg>';
-        return svg;
+        if (imgMatch) {
+            return {
+                type: 'image',
+                alt: imgMatch[1],
+                url: imgMatch[2]
+            };
+        } else {
+            return {
+                type: 'text',
+                content: content
+            };
+        }
     }
     
-    function escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-    
+    // Генерация HTML-карты
     function generateMap() {
         const input = document.getElementById('input').value.trim();
         
@@ -343,36 +331,100 @@
         
         try {
             const tree = parseMarkdown(input);
-            const svg = generateSVG(tree);
-            document.getElementById('mindmap').innerHTML = svg;
+            const html = renderTree(tree);
+            document.getElementById('mindmap').innerHTML = html;
             document.getElementById('status').textContent = '✅ Карта создана!';
         } catch (error) {
             document.getElementById('status').textContent = '❌ Ошибка: ' + error.message;
         }
     }
     
+    // Рендер дерева в HTML
+    function renderTree(tree) {
+        let html = '<div style="position: relative; min-height: 600px;">';
+        
+        // Центральный узел
+        html += `<div class="node-root" style="position: absolute; left: 50%; top: 50px; transform: translateX(-50%); width: 200px;">
+            <div class="node-content">${escapeHtml(tree.name)}</div>
+        </div>`;
+        
+        // Ветви
+        const branchCount = tree.children.length;
+        const width = 1200;
+        const startX = 100;
+        const spacing = (width - 200) / (branchCount > 1 ? branchCount - 1 : 1);
+        
+        tree.children.forEach((branch, i) => {
+            const x = branchCount === 1 ? width / 2 : startX + spacing * i;
+            const y = 200;
+            
+            // Ветвь
+            html += `<div class="node-branch" style="position: absolute; left: ${x}px; top: ${y}px; width: 180px; transform: translateX(-50%);">
+                <div class="node-content">${escapeHtml(branch.name)}</div>
+            </div>`;
+            
+            // Линия от центра к ветви
+            html += `<svg style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none;">
+                <line x1="${width/2}" y1="100" x2="${x}" y2="${y}" stroke="#81c784" stroke-width="2"/>
+            </svg>`;
+            
+            // Подпункты
+            branch.children.forEach((sub, j) => {
+                const subX = x;
+                const subY = y + 150 + j * 120;
+                
+                let subContent = '';
+                if (sub.type === 'image') {
+                    subContent = `<img src="${escapeHtml(sub.url)}" alt="${escapeHtml(sub.alt)}"/>`;
+                    if (sub.alt) subContent += `<div>${escapeHtml(sub.alt)}</div>`;
+                } else {
+                    subContent = escapeHtml(sub.content);
+                }
+                
+                html += `<div class="node-sub" style="position: absolute; left: ${subX}px; top: ${subY}px; width: 160px; transform: translateX(-50%);">
+                    <div class="node-content">${subContent}</div>
+                </div>`;
+                
+                // Линия от ветви к подпункту
+                html += `<svg style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none;">
+            background: #ffffff;
+            <line x1="${x}" y1="${y + 60}" x2="${subX}" y2="${subY}" stroke="#a5d6a7" stroke-width="1.5"/>
+                </svg>`;
+            });
+        });
+        
+        html += '</div>';
+        return html;
+    }
+    
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
     function loadExample() {
         document.getElementById('input').value = `# Иммануил Кант
 ## 📖 Биография
 - 1724–1804 годы жизни
-- Кёнигсберг (Калининград)
-- Профессор университета
+- Родился и прожил всю жизнь в Кёнигсберге
+- ![Портрет Канта](https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Kant_gemaelde_3.jpg/220px-Kant_gemaelde_3.jpg)
 ## 💭 Философия
-- Критика чистого разума
-- Категорический императив
+- Критика чистого разума - главный труд
+- Категорический императив как основа этики
 - Трансцендентальный идеализм
 ## 🕰️ Эпоха
-- Просвещение (XVIII век)
-- Немецкая классическая философия
-- Родоначальник нового мышления
+- Эпоха Просвещения (XVIII век)
+- Родоначальник немецкой классической философии
+- Совершил переворот в мировой мысли
 ## 🌍 Влияние
-- Переворот в мировой мысли
-- Основа современной этики
-- Влияние на Гегеля, Фихте
+- Основа современной этики и эпистемологии
+- Оказал влияние на Гегеля, Фихте, Шеллинга
+- Его идеи актуальны до сих пор
 ## 🏛️ Наследие
-- Труды по этике и эстетике
-- Педагогические идеи
-- Музей в Калининграде`;
+- Труды по этике, эстетике, политике
+- Педагогические идеи о воспитании
+- Музей Канта в Калининграде`;
         
         generateMap();
     }
@@ -389,5 +441,3 @@
 
 </body>
 </html>
-            background: #ffffff;
-            border: 2px solid #81c784;
